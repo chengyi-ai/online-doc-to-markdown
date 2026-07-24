@@ -23,25 +23,26 @@ async function render() {
   );
 }
 
-test("server-renders the Feishu and DingTalk converter", async () => {
+test("server-renders the Feishu, DingTalk, and WeChat converter", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>文档转 MD｜飞书、钉钉公开文档一键转 Markdown<\/title>/i);
-  assert.match(html, /飞书 \/ 钉钉文档链接/);
-  assert.match(html, /支持飞书 docx \/ docs \/ wiki、钉钉 alidocs/);
+  assert.match(html, /<title>文档转 MD｜飞书、钉钉、公众号内容一键转 Markdown<\/title>/i);
+  assert.match(html, /飞书 \/ 钉钉 \/ 公众号文章链接/);
+  assert.match(html, /支持飞书、钉钉 alidocs、微信公众号网页文章/);
   assert.match(html, /下载 ZIP/);
   assert.match(html, /不保存文档内容/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
-test("keeps both document providers and localized-image ZIP support wired", async () => {
-  const [page, layout, worker] = await Promise.all([
+test("keeps all document providers and localized-image ZIP support wired", async () => {
+  const [page, layout, worker, wechat] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../worker/wechat.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(worker, /FEISHU_HOSTS/);
@@ -54,9 +55,17 @@ test("keeps both document providers and localized-image ZIP support wired", asyn
   assert.match(worker, /key\.toLowerCase\(\) === "authcode"/);
   assert.match(worker, /"A-TOKEN"/);
   assert.match(worker, /isAllowedDingTalkImageHost/);
+  assert.match(worker, /extractWeChatDocument/);
+  assert.match(worker, /proxyWeChatImage/);
+  assert.match(wechat, /isAllowedWeChatDocumentUrl/);
+  assert.match(wechat, /mp\.weixin\.qq\.com/);
+  assert.match(wechat, /qpic\.cn/);
+  assert.match(wechat, /data-src/);
+  assert.match(wechat, /renderWeChatArticle/);
+  assert.match(wechat, /provider", "wechat"/);
 
   assert.match(page, /createZip/);
   assert.match(page, /htmlEscapedUrl/);
   assert.match(page, /下载 MD \+ 全部图片 ZIP/);
-  assert.match(layout, /飞书、钉钉公开文档一键转 Markdown/);
+  assert.match(layout, /飞书、钉钉、公众号内容一键转 Markdown/);
 });

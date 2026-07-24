@@ -18,8 +18,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host") || "localhost:3000";
   const protocol = requestHeaders.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
   const origin = `${protocol}://${host}`;
-  const title = "文档转 MD｜飞书、钉钉公开文档一键转 Markdown";
-  const description = "粘贴公开飞书或钉钉文档链接，自动提取文字、标题与图片并下载为 Markdown 文件。";
+  const title = "文档转 MD｜飞书、钉钉、公众号内容一键转 Markdown";
+  const description = "粘贴公开飞书、钉钉文档或微信公众号文章链接，自动提取文字、标题与图片并下载为 Markdown。";
 
   return {
     metadataBase: new URL(origin),

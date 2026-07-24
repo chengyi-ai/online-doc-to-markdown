@@ -332,13 +332,13 @@ export default function Home() {
 
       <section className="hero" id="top">
         <div className="eyebrow"><span>PUBLIC DOC</span><b>一键整理</b></div>
-        <h1>把飞书、钉钉文档，<br /><em>干净地变成 Markdown。</em></h1>
+        <h1>把在线文档与公众号文章，<br /><em>干净地变成 Markdown。</em></h1>
         <p className="hero-copy">
-          粘贴一个公开可访问的飞书或钉钉文档链接。自动提取文字、标题层级和图片，可下载 MD 或包含全部原图的 ZIP。
+          粘贴公开可访问的飞书、钉钉或微信公众号文章链接。自动提取文字、标题层级和图片，可下载 MD 或包含全部原图的 ZIP。
         </p>
 
         <form className="converter-card" onSubmit={handleSubmit}>
-          <label htmlFor="document-url">飞书 / 钉钉文档链接</label>
+          <label htmlFor="document-url">飞书 / 钉钉 / 公众号文章链接</label>
           <div className="input-row">
             <span className="link-icon" aria-hidden="true">↗</span>
             <input
@@ -346,7 +346,7 @@ export default function Home() {
               type="url"
               value={url}
               onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://xxx.feishu.cn/… 或 https://alidocs.dingtalk.com/…"
+              placeholder="粘贴飞书、钉钉或 mp.weixin.qq.com 文章链接"
               required
               disabled={status === "loading"}
               autoComplete="off"
@@ -366,7 +366,7 @@ export default function Home() {
           </button>
 
           <div className="form-footnote">
-            <span>支持飞书 docx / docs / wiki、钉钉 alidocs</span>
+            <span>支持飞书、钉钉 alidocs、微信公众号网页文章</span>
             {hostLabel ? <span className="host-label">正在读取 {hostLabel}</span> : <span>无需开放平台配置</span>}
           </div>
         </form>
@@ -443,7 +443,7 @@ export default function Home() {
         <div className="section-kicker">HOW IT WORKS</div>
         <h2 id="how-title">只做三件事，<br />不把简单的事做复杂。</h2>
         <div className="steps">
-          <article><span>01</span><h3>粘贴链接</h3><p>支持飞书文档、公开知识库页面和钉钉在线文档。</p></article>
+          <article><span>01</span><h3>粘贴链接</h3><p>支持飞书、钉钉在线文档和微信公众号网页文章。</p></article>
           <article><span>02</span><h3>自动整理</h3><p>识别正文、标题、列表、引用和图片 Markdown。</p></article>
           <article><span>03</span><h3>下载 ZIP</h3><p>Markdown 与全部原图一起保存，本地打开也能完整显示。</p></article>
         </div>
@@ -451,7 +451,7 @@ export default function Home() {
 
       <footer>
         <p>请只转换你有权访问和使用的文档。</p>
-        <p>文档转 MD · 飞书 / 钉钉公开文档整理工具</p>
+        <p>文档转 MD · 飞书 / 钉钉 / 公众号公开内容整理工具</p>
       </footer>
     </main>
   );

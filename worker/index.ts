@@ -1,6 +1,13 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import {
+  isAllowedWeChatDocumentUrl,
+  isAllowedWeChatHost,
+  isAllowedWeChatImageUrl,
+  renderWeChatArticle,
+  WeChatContentError,
+} from "./wechat";
 
 interface Env {
   ASSETS: Fetcher;
@@ -24,6 +31,8 @@ const FEISHU_PATHS = ["/docx/", "/docs/", "/wiki/"];
 const DINGTALK_HOSTS = ["alidocs.dingtalk.com"];
 const DINGTALK_PATHS = ["/i/nodes/", "/i/team/", "/note/"];
 const DINGTALK_IMAGE_CDN_ROOTS = ["dingtalk.com", "dingtalk.cn", "aliyuncs.com", "alicdn.com"];
+const WECHAT_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36 MicroMessenger/8.0";
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{8,120}$/;
 const DINGTALK_IMAGE_PATH = /^\/core\/api\/resources\/img\/[A-Za-z0-9_-]{40,1024}$/;
 const dingTalkAccessCache = new Map<string, { token: string; cookieHeader: string; expiresAt: number }>();
@@ -160,6 +169,7 @@ async function fetchGuestPage(
   sourceUrl: string,
   isAllowedHost: (hostname: string) => boolean,
   providerName: string,
+  extraHeaders: Record<string, string> = {},
 ) {
   const cookies = new Map<string, string>();
   const signal = AbortSignal.timeout(50_000);
@@ -173,6 +183,7 @@ async function fetchGuestPage(
       headers: {
         Accept: "text/html,application/xhtml+xml",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.6",
+        ...extraHeaders,
         ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       },
       signal,
@@ -199,6 +210,12 @@ function fetchWithGuestSession(sourceUrl: string) {
 
 function fetchDingTalkGuestSession(sourceUrl: string) {
   return fetchGuestPage(sourceUrl, isAllowedDingTalkHost, "钉钉文档");
+}
+
+function fetchWeChatGuestSession(sourceUrl: string) {
+  return fetchGuestPage(sourceUrl, isAllowedWeChatHost, "微信公众号", {
+    "User-Agent": WECHAT_USER_AGENT,
+  });
 }
 
 function parseJsonObjectAt(input: string, start: number) {
@@ -837,6 +854,42 @@ async function extractDingTalkDocument(sourceUrl: string, requestOrigin: string)
   };
 }
 
+async function extractWeChatDocument(sourceUrl: string, requestOrigin: string) {
+  const guest = await fetchWeChatGuestSession(sourceUrl);
+  if (guest.response.status === 429) {
+    throw new ExtractionError(
+      "WECHAT_RATE_LIMIT",
+      "微信公众号暂时限制了网页读取，请过一会儿再试。",
+      429,
+      "请确认文章能在无痕窗口中直接打开。",
+    );
+  }
+  if (guest.response.status === 401 || guest.response.status === 403) {
+    throw new ExtractionError(
+      "NOT_PUBLIC",
+      "当前公众号文章不允许匿名读取。",
+      403,
+      "请使用已公开发布、能在浏览器中直接打开的公众号文章链接。",
+    );
+  }
+  if (!guest.response.ok) {
+    throw new ExtractionError("WECHAT_ERROR", `微信公众号返回了 ${guest.response.status}，请稍后重试。`, 502);
+  }
+
+  const html = await guest.response.text();
+  if (html.length > 12_000_000) {
+    throw new ExtractionError("DOCUMENT_TOO_LARGE", "公众号文章内容过大，暂时无法在网页中完成转换。", 413);
+  }
+  try {
+    return renderWeChatArticle(html, sourceUrl, requestOrigin);
+  } catch (error) {
+    if (error instanceof WeChatContentError) {
+      throw new ExtractionError(error.code, error.message, error.status, error.help);
+    }
+    throw error;
+  }
+}
+
 async function extractDocument(request: Request) {
   if (request.method !== "POST") {
     return json({ error: "仅支持 POST 请求。" }, { status: 405, headers: { Allow: "POST" } });
@@ -855,8 +908,12 @@ async function extractDocument(request: Request) {
   const submittedUrl = typeof body.url === "string" ? body.url.trim() : "";
   const isFeishu = isAllowedFeishuDocumentUrl(submittedUrl);
   const isDingTalk = isAllowedDingTalkDocumentUrl(submittedUrl);
-  if (!isFeishu && !isDingTalk) {
-    return json({ error: "请粘贴有效的飞书 docx、docs、wiki，或钉钉 alidocs 文档链接。" }, { status: 400 });
+  const isWeChat = isAllowedWeChatDocumentUrl(submittedUrl);
+  if (!isFeishu && !isDingTalk && !isWeChat) {
+    return json(
+      { error: "请粘贴有效的飞书、钉钉，或微信公众号文章链接。" },
+      { status: 400 },
+    );
   }
 
   try {
@@ -864,7 +921,9 @@ async function extractDocument(request: Request) {
     const sourceUrl = isDingTalk ? sanitizeDingTalkSourceUrl(submittedUrl) : submittedUrl;
     const result = isFeishu
       ? await extractFeishuDocument(sourceUrl, requestOrigin)
-      : await extractDingTalkDocument(sourceUrl, requestOrigin);
+      : isDingTalk
+        ? await extractDingTalkDocument(sourceUrl, requestOrigin)
+        : await extractWeChatDocument(sourceUrl, requestOrigin);
     return json(result);
   } catch (error) {
     if (error instanceof ExtractionError) {
@@ -979,9 +1038,58 @@ async function proxyDingTalkImage(request: Request, sourceUrl: string) {
   }
 }
 
+async function proxyWeChatImage(request: Request, sourceUrl: string) {
+  const requestUrl = new URL(request.url);
+  const src = requestUrl.searchParams.get("src") || "";
+  if (!isAllowedWeChatDocumentUrl(sourceUrl) || !isAllowedWeChatImageUrl(src)) {
+    return new Response("Invalid image request", { status: 400 });
+  }
+
+  try {
+    let currentUrl = src;
+    let imageResponse: Response | null = null;
+    for (let step = 0; step < 4; step += 1) {
+      imageResponse = await fetch(currentUrl, {
+        redirect: "manual",
+        headers: {
+          Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+          Referer: sourceUrl,
+          "User-Agent": WECHAT_USER_AGENT,
+        },
+        signal: AbortSignal.timeout(45_000),
+      });
+      if (imageResponse.status < 300 || imageResponse.status >= 400) break;
+      const location = imageResponse.headers.get("location");
+      if (!location) break;
+      const nextUrl = new URL(location, currentUrl);
+      if (!isAllowedWeChatImageUrl(nextUrl.toString())) {
+        imageResponse.body?.cancel();
+        return new Response("Image redirect is not allowed", { status: 400 });
+      }
+      imageResponse.body?.cancel();
+      currentUrl = nextUrl.toString();
+    }
+    const contentType = imageResponse?.headers.get("content-type") || "";
+    if (!imageResponse?.ok || !contentType.startsWith("image/")) {
+      return new Response("Image is unavailable", { status: 404 });
+    }
+    return new Response(imageResponse.body, {
+      headers: {
+        "Content-Type": contentType,
+        "Cache-Control": "private, max-age=3600",
+      },
+    });
+  } catch {
+    return new Response("Image request failed", { status: 502 });
+  }
+}
+
 async function proxyDocumentImage(request: Request) {
   const requestUrl = new URL(request.url);
   const sourceUrl = requestUrl.searchParams.get("url") || "";
+  if (requestUrl.searchParams.get("provider") === "wechat" || isAllowedWeChatDocumentUrl(sourceUrl)) {
+    return proxyWeChatImage(request, sourceUrl);
+  }
   if (requestUrl.searchParams.get("provider") === "dingtalk" || isAllowedDingTalkDocumentUrl(sourceUrl)) {
     return proxyDingTalkImage(request, sourceUrl);
   }
