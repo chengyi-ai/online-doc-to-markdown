@@ -57,6 +57,9 @@ test("keeps all document providers and localized-image ZIP support wired", async
   assert.match(worker, /isAllowedDingTalkImageHost/);
   assert.match(worker, /extractWeChatDocument/);
   assert.match(worker, /proxyWeChatImage/);
+  assert.match(worker, /isFeishuLoginUrl/);
+  assert.match(worker, /这个飞书链接在未登录状态下会跳转到登录页/);
+  assert.match(worker, /suite-passport/);
   assert.match(wechat, /isAllowedWeChatDocumentUrl/);
   assert.match(wechat, /mp\.weixin\.qq\.com/);
   assert.match(wechat, /qpic\.cn/);

@@ -111,6 +111,20 @@ function isAllowedFeishuHost(hostname: string) {
   return FEISHU_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
 }
 
+function isFeishuLoginUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    return (
+      parsed.hostname === "accounts.feishu.cn" ||
+      parsed.hostname === "login.feishu.cn" ||
+      parsed.pathname.startsWith("/accounts/page/login") ||
+      parsed.pathname.startsWith("/accounts/trap")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function isAllowedDingTalkDocumentUrl(value: string) {
   try {
     const parsed = new URL(value);
@@ -244,7 +258,10 @@ function parseJsonObjectAt(input: string, start: number) {
 function extractClientVars(html: string) {
   const marker = /clientVars:\s*Object\(/g.exec(html);
   if (!marker) {
-    const isLoginPage = /Log In With QR Code|登录飞书|扫码登录|accounts\/page\/login/i.test(html);
+    const isLoginPage =
+      /Log In With QR Code|登录飞书|扫码登录|accounts\/(?:page\/login|trap)|suite-passport|window\.serverInjectRes|passport_web_did/i.test(
+        html,
+      );
     if (isLoginPage) {
       throw new ExtractionError(
         "NOT_PUBLIC",
@@ -738,7 +755,16 @@ async function getDingTalkAccess(
 }
 
 async function extractFeishuDocument(sourceUrl: string, requestOrigin: string) {
-  const { response } = await fetchWithGuestSession(sourceUrl);
+  const guest = await fetchWithGuestSession(sourceUrl);
+  const { response } = guest;
+  if (isFeishuLoginUrl(guest.finalUrl)) {
+    throw new ExtractionError(
+      "NOT_PUBLIC",
+      "这个飞书链接在未登录状态下会跳转到登录页，因此暂时无法读取。",
+      403,
+      "你当前浏览器已登录，所以自己能打开；请把文档和所属知识库都设为“互联网上获得链接的任何人可阅读/编辑”，再用无痕窗口确认无需登录也能打开。",
+    );
+  }
   if (response.status === 429) {
     throw new ExtractionError("FEISHU_RATE_LIMIT", "飞书暂时限制了访问频率，请过一会儿再试。", 429);
   }
