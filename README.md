@@ -29,8 +29,18 @@ npm run dev
 ```bash
 npm test
 npm run lint
+python tools/validate_repo.py
+python -m unittest discover -s tests
 ```
+
+后两条是仓库检查和反馈工作流脚本的测试，只需要 Python 3.10+，不用装额外依赖。
 
 ## 部署
 
 项目基于 vinext 和 Cloudflare Workers 运行，`.openai/hosting.json` 保留了现有 Sites 项目绑定。GitHub Pages 只能托管静态页面，不能单独运行本项目的文档解析接口。
+
+## 反馈
+
+遇到转换失败或有想法，直接[提 issue](https://github.com/chengyi-ai/online-doc-to-markdown/issues/new/choose)。issue 是公开的，请不要贴私有文档的链接或内容；需要示例时，新建一个只含测试内容的公开文档来复现。
+
+提交后 Agent 会自动读代码评估可行性，在 issue 下回复结论和实现思路；维护者确认后由 Agent 写代码、跑测试、提 PR，合并前一定有人审。社媒、群聊里的反馈也能登记进来，整套流程和配置见 [docs/agent-workflow.md](docs/agent-workflow.md)。

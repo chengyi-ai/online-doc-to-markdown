@@ -1,0 +1,64 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Agent 用默认 token 建的 PR 不会触发 pull_request，由 Agent Implement 手动补触发。
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # 网页应用：ESLint，构建 Worker 后跑 node:test。测试不访问外网。
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build and test
+        run: npm test
+
+  # 仓库检查与反馈工作流脚本的单元测试，只用 Python 标准库。
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Validate repository
+        run: python tools/validate_repo.py
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Check shell scripts
+        run: for f in .github/scripts/*.sh; do bash -n "$f"; done
