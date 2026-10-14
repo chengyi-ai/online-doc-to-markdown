@@ -1,0 +1,61 @@
+name: 问题反馈 / Bug report
+description: 链接转换失败、提示需要登录、标题层级或图片不对、下载的 MD / ZIP 有问题
+labels: ["needs-triage", "source:github", "type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交后 Agent 会自动评估可行性并回复。issue 是公开的：
+        **请不要贴私有或内部文档的链接，也不要贴文档正文、截图里的敏感信息、Cookie 或 Token。**
+        需要示例时，请新建一个只含测试内容、设为「获得链接的人可查看」的公开文档来复现。
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 文档平台
+      options:
+        - 飞书 / Lark
+        - 钉钉文档（alidocs）
+        - 微信公众号文章
+        - 其他
+    validations:
+      required: true
+  - type: input
+    id: link_type
+    attributes:
+      label: 链接类型
+      description: 只填路径形式，不要填完整链接。例如飞书 `/docx/`、`/wiki/`，钉钉 `/i/nodes/`、`/i/team/`，公众号 `mp.weixin.qq.com/s/…`
+      placeholder: /wiki/
+  - type: dropdown
+    id: public
+    attributes:
+      label: 未登录能打开吗
+      description: 用浏览器无痕窗口打开这个文档，不登录能看到正文吗？本项目只支持公开可访问的文档。
+      options:
+        - 能，无痕窗口里不登录就能看到正文
+        - 不能，会跳到登录页或提示无权限
+        - 不确定
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 页面上的提示或报错原文；或者转换结果哪里不对（标题层级、列表、表格、代码块、图片缺失、ZIP 里图片路径……）。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现方式
+      description: 用的是在线版还是本地运行（`npm run dev`）、点了哪个下载按钮。能提供公开测试文档的链接最好。
+  - type: input
+    id: env
+    attributes:
+      label: 运行环境
+      description: 浏览器与版本；本地运行时附上 Node.js 版本和 `git rev-parse --short HEAD`
